@@ -1,6 +1,6 @@
 # Business Days Calculator
 
-A Go package to calculate the number of business days (Monday to Friday) between two dates.
+A Go package to calculate the number of business days (Monday to Friday) between two dates, with optional public holiday awareness for 60+ countries.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/bobadilla-tech/business-days-calculator.svg)](https://pkg.go.dev/github.com/bobadilla-tech/business-days-calculator)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bobadilla-tech/business-days-calculator)](https://goreportcard.com/report/github.com/bobadilla-tech/business-days-calculator)
@@ -9,8 +9,8 @@ A Go package to calculate the number of business days (Monday to Friday) between
 ## Features
 
 - 📅 **Business day calculation** - Counts only Monday to Friday
-- 🚀 **Zero dependencies** - Pure Go implementation
-- ⚡ **Fast and efficient** - Simple, reliable algorithm
+- 🌍 **Holiday awareness** - Exclude public holidays for 60+ countries and their subdivisions
+- ⚡ **Fast and efficient** - Holiday lookups are O(1) via pre-built date sets
 - 🧪 **Well tested** - Comprehensive test coverage
 - 💻 **Simple API** - Easy to integrate
 
@@ -22,7 +22,7 @@ go get github.com/bobadilla-tech/business-days-calculator
 
 ## Usage
 
-### Basic Usage
+### Basic — weekends only
 
 ```go
 package main
@@ -30,43 +30,159 @@ package main
 import (
     "fmt"
     "time"
-    "github.com/bobadilla-tech/business-days-calculator"
+
+    businessdayscalculator "github.com/bobadilla-tech/business-days-calculator"
 )
 
 func main() {
-    start := time.Date(2026, 2, 9, 0, 0, 0, 0, time.UTC) // Monday
-    end := time.Date(2026, 2, 16, 0, 0, 0, 0, time.UTC)   // Next Monday
-    days := businessdayscalculator.CalculateBusinessDays(start, end)
-    fmt.Printf("Business days: %d\n", days)
+    start := time.Date(2026, 2, 9, 0, 0, 0, 0, time.UTC)  // Monday
+    end   := time.Date(2026, 2, 16, 0, 0, 0, 0, time.UTC) // Next Monday
+
+    days := businessdayscalculator.CountBusinessDays(start, end)
+    fmt.Printf("Business days: %d\n", days) // 6
 }
 ```
 
-### API Reference
-
-#### `CalculateBusinessDays(start, end time.Time) int`
-
-Returns the number of business days (Monday to Friday) between two dates, inclusive. The order of dates does not matter.
+### With public holidays
 
 ```go
-businessdayscalculator.CalculateBusinessDays(start, end) // returns business day count
+package main
+
+import (
+    "fmt"
+    "time"
+
+    businessdayscalculator "github.com/bobadilla-tech/business-days-calculator"
+)
+
+func main() {
+    opts := businessdayscalculator.HolidayOptions{
+        CountryCode: "US",
+        Subdivision: "US-NY", // optional; omit for nationwide holidays only
+    }
+
+    start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+    end   := time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)
+
+    // Count business days, skipping weekends and US public holidays
+    count := businessdayscalculator.CountBusinessDaysWithHolidays(start, end, opts)
+    fmt.Printf("Business days in January 2026: %d\n", count)
+
+    // Add 10 business days to a date, skipping weekends and holidays
+    deadline := businessdayscalculator.AddBusinessDaysWithHolidays(start, 10, opts)
+    fmt.Printf("10 business days after Jan 1: %s\n", deadline.Format("2006-01-02"))
+
+    // Check if a specific date is a business day
+    isOpen := businessdayscalculator.IsBusinessDayWithHolidays(
+        time.Date(2026, 1, 19, 0, 0, 0, 0, time.UTC), // MLK Day
+        opts,
+    )
+    fmt.Printf("Jan 19 is a business day: %v\n", isOpen) // false
+}
 ```
 
-- Weekends (Saturday, Sunday) are excluded
-- Time component is ignored (only the date matters)
-- If start and end are the same business day, returns 1
-- If both are on a weekend, returns 0
+## API Reference
+
+### Types
+
+#### `HolidayOptions`
+
+Configures the country and optional subdivision used for holiday lookups.
+
+```go
+type HolidayOptions struct {
+    CountryCode string // ISO 3166-1 alpha-2 code, e.g. "US", "CA", "GB"
+    Subdivision string // ISO 3166-2 code, e.g. "US-NY", "GB-ENG" (optional)
+}
+```
+
+When `Subdivision` is set, nationwide holidays always apply, and subdivision-specific holidays are filtered to only those matching the given subdivision. When `Subdivision` is empty, all holidays for the country are included.
+
+### Functions
+
+#### `CountBusinessDays(start, end time.Time) int`
+
+Returns the number of business days (Monday–Friday) between two dates, inclusive. Weekends are excluded; public holidays are **not** considered. The order of dates does not matter.
+
+```go
+// 6 business days (Mon Feb 9 – Mon Feb 16, inclusive)
+days := businessdayscalculator.CountBusinessDays(
+    time.Date(2026, 2, 9, 0, 0, 0, 0, time.UTC),
+    time.Date(2026, 2, 16, 0, 0, 0, 0, time.UTC),
+)
+```
+
+#### `CountBusinessDaysWithHolidays(start, end time.Time, opts HolidayOptions) int`
+
+Same as `CountBusinessDays` but also excludes public holidays for the given country/subdivision.
+
+```go
+opts := businessdayscalculator.HolidayOptions{CountryCode: "US"}
+
+// Jan 2026 has New Year's Day (Jan 1, Thu) and MLK Day (Jan 19, Mon)
+count := businessdayscalculator.CountBusinessDaysWithHolidays(
+    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+    time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+    opts,
+)
+```
+
+#### `AddBusinessDaysWithHolidays(start time.Time, n int, opts HolidayOptions) time.Time`
+
+Returns the date that is `n` business days after `start`, skipping weekends and public holidays. Negative values of `n` move backwards in time.
+
+```go
+opts := businessdayscalculator.HolidayOptions{CountryCode: "US"}
+
+// Dec 24 (Thu) + 1 business day → Dec 28 (Mon), because Dec 25 is Christmas
+result := businessdayscalculator.AddBusinessDaysWithHolidays(
+    time.Date(2026, 12, 24, 0, 0, 0, 0, time.UTC),
+    1,
+    opts,
+)
+```
+
+#### `IsBusinessDayWithHolidays(date time.Time, opts HolidayOptions) bool`
+
+Reports whether `date` is a business day, accounting for weekends and public holidays.
+
+```go
+opts := businessdayscalculator.HolidayOptions{CountryCode: "US"}
+
+// MLK Day is a Monday but a public holiday → false
+open := businessdayscalculator.IsBusinessDayWithHolidays(
+    time.Date(2026, 1, 19, 0, 0, 0, 0, time.UTC),
+    opts,
+)
+```
+
+### Supported country codes (examples)
+
+| Code | Country        | Subdivision support                    |
+| ---- | -------------- | -------------------------------------- |
+| `US` | United States  | `US-NY`, `US-CA`, `US-TX`, …           |
+| `CA` | Canada         | `CA-ON`, `CA-QC`, `CA-BC`, …           |
+| `GB` | United Kingdom | `GB-ENG`, `GB-SCT`, `GB-WLS`, `GB-NIR` |
+| `AU` | Australia      | `AU-NSW`, `AU-VIC`, `AU-QLD`, …        |
+| `DE` | Germany        | `DE-BY`, `DE-NW`, `DE-BE`, …           |
+
+Holiday data is provided by [github.com/bobadilla-tech/holidays-per-country](https://github.com/bobadilla-tech/holidays-per-country).
 
 ## How It Works
 
-1. **Date Normalization**: Both dates are normalized to midnight (00:00:00)
-2. **Order Handling**: If start is after end, the dates are swapped
-3. **Full Weeks**: Calculates the number of full weeks and multiplies by 5 (business days per week)
-4. **Partial Week**: Counts business days in the remaining days
-5. **Excludes weekends**: Only Monday-Friday are counted
+### `CountBusinessDays`
+
+1. Normalise both dates to midnight and swap if needed
+2. Count full weeks × 5, then iterate the remaining days checking the weekday
+
+### `CountBusinessDaysWithHolidays` / `IsBusinessDayWithHolidays` / `AddBusinessDaysWithHolidays`
+
+1. Fetch all holidays for the date range in a single call to `GetHolidaysInRange`
+2. Store them in a `map[string]struct{}` keyed by `"YYYY-MM-DD"` for O(1) lookup
+3. Iterate day-by-day, skipping weekends and any date in the holiday set
+4. `AddBusinessDaysWithHolidays` lazily expands the holiday set if the walk goes beyond the pre-fetched range
 
 ## Testing
-
-Run the tests:
 
 ```bash
 go test -v
@@ -89,7 +205,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Credits
 
 - Inspired by the need for simple, efficient business day calculation in Go
+- Holiday data powered by [holidays-per-country](https://github.com/bobadilla-tech/holidays-per-country)
 
 ## Related Projects
 
+- [holidays-per-country](https://github.com/bobadilla-tech/holidays-per-country) - Public holiday data for 60+ countries (Go)
 - [dateutil](https://github.com/dateutil/dateutil) - Powerful extensions to the standard datetime module (Python)
