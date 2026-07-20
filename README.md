@@ -3,7 +3,6 @@
 A Go package to calculate the number of business days (Monday to Friday) between two dates, with optional public holiday awareness for 60+ countries.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/bobadilla-tech/business-days-calculator.svg)](https://pkg.go.dev/github.com/bobadilla-tech/business-days-calculator)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bobadilla-tech/business-days-calculator)](https://goreportcard.com/report/github.com/bobadilla-tech/business-days-calculator)
 [![License](https://img.shields.io/github/license/bobadilla-tech/business-days-calculator)](LICENSE)
 
 ## Features
